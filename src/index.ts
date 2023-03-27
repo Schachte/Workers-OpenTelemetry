@@ -1,10 +1,4 @@
-import { HeadersTextMapper } from './tracing/HeadersTextMapper';
-// import { context } from '@opentelemetry/api'
-// import { setSpan } from '@opentelemetry/api/build/src/trace/context-utils'
-// import { CustomContext } from './tracing/CustomContext'
-import { context, propagation } from '@opentelemetry/api'
 import { TelemetrySdk } from './tracing/TelemetrySdk'
-import { CustomContext } from './tracing/CustomContext';
 
 export interface Env {}
 
