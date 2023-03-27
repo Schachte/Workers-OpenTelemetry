@@ -8,35 +8,53 @@ Luckily, the OTEL abstractions provide enough of a base layer for us to implemen
 
 ## Example Usage
 
-```
-const sdk = new TelemetrySdk(
-    'http://my-otel-endpoint.com/v1/traces',
-    'my-service-name',
-)
+```typescript
+// import this first to ensure no error on lacking provider API in Worker environment
+import './tracing/Performance'
 
-// Parent
-const customCtx = new CustomContext()
-const parent = sdk.getTracer('worker-tracer').startSpan('do some initial work', {
-    attributes: {
-        "parent-attribute": "yay parent attributes",
-    }
-}, customCtx)
+import { context } from '@opentelemetry/api'
+import { setSpan } from '@opentelemetry/api/build/src/trace/context-utils'
+import { CustomContext } from './tracing/CustomContext'
+import { TelemetrySdk } from './tracing/TelemetrySdk'
+export interface Env {}
 
-// Simulate some work
-await new Promise((resolve) => setTimeout(resolve, 1000))
+export default {
+    // initialize the SDK
+    const sdk = new TelemetrySdk(
+      // Note: You cannot use non-standard ports from Worker unless domains are in the same zone!
+      // FYI: The Jaeger all-in-one docker image has an OTEL collector endpoint for HTTP/gRPC
+      'http//localhost/v1/trace',
+      'My Customer Tracer Service',
+    )
 
-// Child
-const spanCtx = setSpan(customCtx, parent);
-const childSpan = sdk.getTracer('worker-tracer-2').startSpan('child doing some work',{
-    attributes: {
-        "child-attribute": "yay child attributes",
-    }
-}, spanCtx)
-    
-// Simulate some work
-await new Promise((resolve) => setTimeout(resolve, 500))
-childSpan.end()
-parent.end()
-ctx.waitUntil(sdk.getTraceProvider().forceFlush())
-return new Response(`Trace recorded to: ${sdk.getEndpoint()}`)
+    // Parent
+    const customCtx = new CustomContext()
+    const parent = sdk.startSpan(
+      'do some initial work',
+      {
+        attributes: {
+          'parent-attribute': 'yay parent attributes',
+        },
+      },
+      customCtx,
+    )
+
+    // Simulate some work
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // Child
+    const childSpan = sdk.startChildSpan('child doing some work', parent, {
+      attributes: {
+        'child-attribute': 'yay child attributes',
+      },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    childSpan.end()
+
+    parent.end()
+    ctx.waitUntil(sdk.getTraceProvider().forceFlush())
+    return new Response(`Trace recorded to: ${sdk.getEndpoint()}`)
+  },
+}
+
 ```
