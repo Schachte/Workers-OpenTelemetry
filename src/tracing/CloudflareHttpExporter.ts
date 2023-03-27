@@ -6,7 +6,6 @@ import {
 import {
 	BaseExporter,
 } from "./BaseExporter";
-import { baggageUtils } from "@opentelemetry/core";
 
 // CloudflareHttpExporter is a generic exporter that can run within a Cloudflare Worker. Leveraging
 // this as the default exporter will avoid running into errors for missing functions like XHR, issues

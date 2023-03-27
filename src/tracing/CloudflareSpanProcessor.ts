@@ -24,6 +24,7 @@ export class CloudflareSpanProcessor implements SpanProcessor {
 					this.spans.clear();
 					resolve();
 				} else {
+					console.log(result)
 					reject(result.error);
 				}
 			});

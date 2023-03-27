@@ -1,13 +1,10 @@
 import { diag } from '@opentelemetry/api'
 import {
-  baggageUtils,
   ExportResult,
   ExportResultCode,
 } from '@opentelemetry/core'
 import {
-  configureExporterTimeout,
   ExportServiceError,
-  OTLPExporterConfigBase,
   OTLPExporterError,
   parseHeaders,
 } from '@opentelemetry/otlp-exporter-base'

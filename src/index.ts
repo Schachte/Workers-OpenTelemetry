@@ -1,8 +1,11 @@
-import { context } from '@opentelemetry/api'
-import { setSpan } from '@opentelemetry/api/build/src/trace/context-utils'
-import { CustomContext } from './tracing/CustomContext'
-import './tracing/Performance'
+import { HeadersTextMapper } from './tracing/HeadersTextMapper';
+// import { context } from '@opentelemetry/api'
+// import { setSpan } from '@opentelemetry/api/build/src/trace/context-utils'
+// import { CustomContext } from './tracing/CustomContext'
+import { context, propagation } from '@opentelemetry/api'
 import { TelemetrySdk } from './tracing/TelemetrySdk'
+import { CustomContext } from './tracing/CustomContext';
+
 export interface Env {}
 
 export default {
@@ -11,38 +14,34 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<Response> {
-    const sdk = new TelemetrySdk(
-      // Note: You cannot use non-standard ports from Worker unless domains are in the same zone!
-      'http//localhost/v1/trace',
-      'My Customer Tracer Service',
+    const tracer = new TelemetrySdk(
+		request,
+      'http://localhost/v1/traces',
+      'My Customer Tracer Service [NEWv2]',
     )
 
-    // Parent
-    const customCtx = new CustomContext()
-    const parent = sdk.startSpan(
-      'do some initial work',
-      {
-        attributes: {
-          'parent-attribute': 'yay parent attributes',
-        },
+    const parent = tracer.startSpan('Parent Task', {
+      attributes: {
+        'parent-attribute': 'root',
       },
-      customCtx,
-    )
+    })
 
     // Simulate some work
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
     // Child
-    const childSpan = sdk.startChildSpan('child doing some work', parent, {
-      attributes: {
-        'child-attribute': 'yay child attributes',
-      },
-    })
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    childSpan.end()
+    const childSpan = tracer.startSpan(
+      'Child Task',
+      {},
+      parent,
+    )
 
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    childSpan.end()
     parent.end()
-    ctx.waitUntil(sdk.getTraceProvider().forceFlush())
-    return new Response(`Trace recorded to: ${sdk.getEndpoint()}`)
+
+    ctx.waitUntil(tracer.flushTraces())
+    return new Response(`Trace recorded to: ${tracer.getEndpoint()}`)
   },
 }

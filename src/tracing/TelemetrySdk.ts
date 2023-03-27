@@ -1,3 +1,5 @@
+import './Performance'
+import { CustomContext } from './CustomContext'
 import { CloudflareHttpExporter } from './CloudflareHttpExporter'
 import {
   CompositePropagator,
@@ -12,24 +14,20 @@ import {
 } from '@opentelemetry/sdk-trace-base'
 import { CloudflareSpanProcessor } from './CloudflareSpanProcessor'
 import {
-  context,
   Context,
-  ROOT_CONTEXT,
   Span,
   SpanOptions,
-  Tracer,
 } from '@opentelemetry/api'
 import {
   SemanticResourceAttributes,
-  SemanticAttributes,
 } from '@opentelemetry/semantic-conventions'
 import {
-  getActiveSpan,
   setSpan,
-  setSpanContext,
 } from '@opentelemetry/api/build/src/trace/context-utils'
+import { HeadersTextMapper } from './HeadersTextMapper'
 
 export const TRACER_VERSION = '0.1.0'
+const headersTextMapper = new HeadersTextMapper()
 
 /**
  * TelemetrySdk is a wrapper around the OpenTelemetry SDK that provides an easy way to
@@ -40,10 +38,10 @@ export class TelemetrySdk {
   private traceProvider: BasicTracerProvider
   private readonly traceExporter: SpanExporter
   private readonly tracerIdentifier: string
-  private contextMap = new Map<Context, Span>()
-  private lastActiveSpan: Span | undefined
+  private activeContext: Context = new CustomContext()
 
   constructor(
+    private request: Request,
     private readonly endpoint: string,
     private readonly serviceName: string,
   ) {
@@ -69,38 +67,51 @@ export class TelemetrySdk {
         new W3CBaggagePropagator(),
       ],
     })
+
+    // extract all headers from the request
+    this.activeContext = this.propagator.extract(this.activeContext, request.headers, headersTextMapper)
   }
 
-  // startSpan allows you to start a new span and either auto correlate it to
-  // the parent or start a fresh new span.
   public startSpan(
     name: string,
     options?: SpanOptions,
-    customCtx?: Context,
+    parentSpan?: Span,
   ): Span {
-    const provider = this.traceProvider.getTracer(
+    const tracer = this.traceProvider.getTracer(
       this.tracerIdentifier,
       TRACER_VERSION,
     )
-    return provider.startSpan(name, options, customCtx || ROOT_CONTEXT)
+
+    if (!parentSpan) {
+      return tracer.startSpan(name, options, this.activeContext)
+    }
+
+    const parentCtx = setSpan(this.activeContext, parentSpan)
+    return tracer.startSpan(name, options, parentCtx)
   }
 
-  // startChildSpan allows you to start a new span and correlate it to the parent
-  // by just passing the parent span into the function
-  public startChildSpan(name: string, parentSpan: Span, options?: SpanOptions,): Span {
-    const provider = this.traceProvider.getTracer(
-      this.tracerIdentifier,
-      TRACER_VERSION,
-    )
-    const parentCtx = setSpan(context.active(), parentSpan);
-    return provider.startSpan(name, options, parentCtx);
+  public flushTraces(): Promise<void> {
+    return this.traceProvider.forceFlush()
   }
 
   public getTraceProvider(): BasicTracerProvider {
     return this.traceProvider
   }
 
+  public getPropagator(): CompositePropagator {
+    return this.propagator
+  }
+
   public getEndpoint(): string {
     return this.endpoint
+  }
+
+  public getActiveContext(): Context {
+    return this.activeContext
+  }
+
+  public cloneRequest(request: Request) {
+    const url = new URL(request.url);
+    return new Request(url.toString(), new Request(request, {}));
   }
 }
